@@ -1,4 +1,4 @@
-#Spyder - Variable Explorer Pint Support
+# Spyder - Variable Explorer Pint Quantity Support
 
 
 This branch adds support for Pint Quantities to Spyder's variable explorer. It currently supports basic numerical types and numpy arrays. 
