@@ -1,3 +1,20 @@
+#Spyder - Variable Explorer Pint Support
+
+
+This branch adds support for Pint Quantities to Spyder's variable explorer. It currently supports basic numerical types and numpy arrays. 
+
+Quick example below. 
+ ![Pint Support Example](/pint_support_images/pint_support_example.PNG?raw=True)
+ 
+The pint numpy array editor gives a little more information including: the current unit, the dimensionality of the unit, and a combobox is included to allow you to convert units.
+  ![Pint Support Example](/pint_support_images/numpy_example.PNG?raw=True)
+ 
+ 
+I would like to develop this further. Right now its more of a proof of concept. 
+
+
+
+
 # Spyder - The Scientific PYthon Development EnviRonment
 
 Copyright © Spyder Project Contributors.
