@@ -49,7 +49,7 @@ from spyder.widgets.variableexplorer.utils import (
     array, DataFrame, Index, display_to_value, FakeObject, get_color_name,
     get_human_readable_type, get_size, Image, is_editable_type, is_known_type,
     MaskedArray, ndarray, np_savetxt, Series, sort_against, try_to_eval,
-    unsorted_unique, value_to_display, get_object_attrs, get_type_string)
+    unsorted_unique, value_to_display, get_object_attrs, get_type_string, Quantity)
 
 if ndarray is not FakeObject:
     from spyder.widgets.variableexplorer.arrayeditor import ArrayEditor
@@ -57,6 +57,8 @@ if ndarray is not FakeObject:
 if DataFrame is not FakeObject:
     from spyder.widgets.variableexplorer.dataframeeditor import DataFrameEditor
 
+if Quantity is not FakeObject:
+    from spyder.widgets.variableexplorer.quantityeditor import QuantityArrayEditor, QuantityEditor
 
 # To be able to get and set variables between Python 2 and 3
 PICKLE_PROTOCOL = 2
@@ -144,6 +146,9 @@ class ReadOnlyCollectionsModel(QAbstractTableModel):
             self.title += _("Dictionary")
             if not self.names:
                 self.header0 = _("Key")
+        elif isinstance(data, Quantity):
+            self.keys = ['magnitude', 'u']
+            self.title += 'Quantity'
         else:
             self.keys = get_object_attrs(data)
             self._data = data = self.showndata = ProxyObject(data)
@@ -482,6 +487,18 @@ class CollectionsDelegate(QItemDelegate):
             self.create_dialog(editor, dict(model=index.model(), editor=editor,
                                             key=key, readonly=readonly))
             return None
+        # --editor = PintQuantity Editor
+        elif isinstance(value, Quantity):
+            if isinstance(value.magnitude, (ndarray, MaskedArray)) and ndarray is not FakeObject:
+                editor = QuantityArrayEditor(parent)
+                if not editor.setup_and_check(value, title=key, readonly=readonly):
+                    return
+                self.create_dialog(editor, dict(model=index.model(), editor=editor, key=key, readonly=readonly))
+                return None
+            else:
+                editor = QuantityEditor(parent, option, index)
+                return editor
+
         #---editor = QDateEdit or QDateTimeEdit
         elif isinstance(value, datetime.date):
             if readonly:
@@ -588,6 +605,9 @@ class CollectionsDelegate(QItemDelegate):
                     value = to_text_string(value, 'utf8')
                 except:
                     pass
+            if isinstance(value, Quantity):
+                editor.setText(str(value.m))
+                return None
             if not is_text_string(value):
                 value = repr(value)
             editor.setText(value)
@@ -595,6 +615,9 @@ class CollectionsDelegate(QItemDelegate):
             editor.setDate(value)
         elif isinstance(editor, QDateTimeEdit):
             editor.setDateTime(QDateTime(value.date(), value.time()))
+        if isinstance(value, Quantity):
+            editor.setText(str(value.m))
+            return None
 
     def setModelData(self, editor, model, index):
         """

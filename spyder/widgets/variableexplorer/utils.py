@@ -110,6 +110,16 @@ try:
 except:
     NavigableString = FakeObject  # analysis:ignore
 
+#==============================================================================
+# Pint support (see Issue 1867)
+#==============================================================================
+try:
+    from pint.quantity import _Quantity
+
+    Quantity = _Quantity
+
+except:
+    Quantity = FakeObject # analysis:ignore
 
 #==============================================================================
 # Misc.
@@ -134,6 +144,10 @@ def get_size(item):
         return len(item)
     elif isinstance(item, (ndarray, MaskedArray)):
         return item.shape
+    elif isinstance(item, Quantity):
+        if isinstance(item.m, (ndarray, MaskedArray)):
+            return item.m.shape
+        return 1
     elif isinstance(item, Image):
         return item.size
     if isinstance(item, (DataFrame, Index, Series)):
@@ -221,7 +235,8 @@ COLORS = {
            matrix,
            DataFrame,
            Series,
-           Index):            ARRAY_COLOR,
+           Index,
+           Quantity):            ARRAY_COLOR,
           Image:              "#008000",
           datetime.date:      "#808000",
           datetime.timedelta: "#808000",
@@ -444,6 +459,8 @@ def value_to_display(value, minmax=False, level=0):
               isinstance(value, bool) or
               isinstance(value, numeric_numpy_types)):
             display = repr(value)
+        elif isinstance(value, Quantity):
+            display = str(value)
         else:
             if level == 0:
                 display = default_display(value)
@@ -501,6 +518,12 @@ def display_to_value(value, default_value, ignore_errors=True):
             value = datestr_to_datetime(value).date()
         elif isinstance(default_value, datetime.timedelta):
             value = str_to_timedelta(value)
+        elif isinstance(default_value, Quantity):
+            try:
+                value = int(value)
+            except ValueError:
+                value = float(value)
+            value = value * default_value.u
         elif ignore_errors:
             value = try_to_eval(value)
         else:
@@ -524,6 +547,8 @@ def get_type_string(item):
         return type(item).__name__
     if isinstance(item, Series):
         return "Series"
+    if isinstance(item, Quantity):
+        return 'Quantity'
     found = re.findall(r"<(?:type|class) '(\S*)'>",
                        to_text_string(type(item)))
     if found:

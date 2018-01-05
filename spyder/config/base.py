@@ -392,6 +392,12 @@ def get_supported_types():
         editable_types += [DataFrame, Series, Index]
     except:
         pass
+    try:
+        from pint.quantity import _Quantity
+        Quantity = _Quantity
+        editable_types += [Quantity]
+    except:
+        pass
     picklable_types = editable_types[:]
     try:
         from spyder.pil_patch import Image
