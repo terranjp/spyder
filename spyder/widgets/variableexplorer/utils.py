@@ -115,9 +115,7 @@ except:
 #==============================================================================
 try:
     from pint.quantity import _Quantity
-
     Quantity = _Quantity
-
 except:
     Quantity = FakeObject # analysis:ignore
 

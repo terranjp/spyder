@@ -574,16 +574,17 @@ class QuantityArrayEditorWidget(QWidget):
         bgcolor.stateChanged.connect(self.model.bgcolor)
         btn_layout.addWidget(bgcolor)
 
+        # Add a combo box to change current pint unit
+
+        self.unitLabel = QLabel("Convert to unit:")
         self.unitCombo = QComboBox()
         self.add_units_to_combo()
-
         i = self.unitCombo.findData(self.data.u)
         self.unitCombo.setCurrentIndex(i)
-
         self.unitCombo.currentIndexChanged.connect(self.handle_unit_change)
 
+        btn_layout.addWidget(self.unitLabel)
         btn_layout.addWidget(self.unitCombo)
-
         layout = QVBoxLayout()
         layout.addWidget(self.view)
         layout.addLayout(btn_layout)
