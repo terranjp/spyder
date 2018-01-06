@@ -32,10 +32,8 @@ from qtpy.QtWidgets import (QAbstractItemDelegate, QApplication, QCheckBox,
 
 import numpy as np
 
-
-
-from spyder.widgets.variableexplorer.arrayeditor import SUPPORTED_FORMATS, is_number, is_float, get_idx_rect, LARGE_COLS, LARGE_NROWS, LARGE_SIZE, ArrayEditor, ArrayModel, ArrayDelegate
-
+from spyder.widgets.variableexplorer.arrayeditor import SUPPORTED_FORMATS, is_number, is_float, get_idx_rect, \
+    LARGE_COLS, LARGE_NROWS, LARGE_SIZE, ArrayEditor, ArrayModel, ArrayDelegate, ArrayView
 
 from pint.quantity import _Quantity
 # Local imports
@@ -45,6 +43,8 @@ from pint.quantity import _Quantity
 from spyder.py3compat import (io, is_binary_string, is_string,
                               is_text_string, PY3, to_binary_string,
                               to_text_string)
+
+
 # from spyder.utils import icon_manager as ima
 # from spyder.utils.qthelpers import add_actions, create_action, keybinding
 
@@ -55,8 +55,8 @@ from spyder.py3compat import (io, is_binary_string, is_string,
 class QuantityArrayModel(ArrayModel):
     """Array Editor Table Model"""
 
-    ROWS_TO_LOAD = 500
-    COLS_TO_LOAD = 40
+    # ROWS_TO_LOAD = 500
+    # COLS_TO_LOAD = 40
 
     def __init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None):
         ArrayModel.__init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None)
@@ -119,7 +119,6 @@ class QuantityArrayModel(ArrayModel):
                 self.cols_loaded = self.COLS_TO_LOAD
             else:
                 self.cols_loaded = self.total_cols
-
 
     def get_value(self, index):
         i = index.row()
@@ -205,134 +204,11 @@ class QuantityArrayModel(ArrayModel):
         return True
 
 
-# TODO: Implement "Paste" (from clipboard) feature
-class QuantityArrayView(QTableView):
-    """Array view class"""
-
-    def __init__(self, parent, model, dtype, shape):
-        QTableView.__init__(self, parent)
-
-        self.setModel(model)
-        self.setItemDelegate(ArrayDelegate(dtype, self))
-        total_width = 0
-
-        for k in range(shape[1]):
-            total_width += self.columnWidth(k)
-
-        self.viewport().resize(min(total_width, 1024), self.height())
-        self.shape = shape
-        self.menu = self.setup_menu()
-        # config_shortcut(self.copy, context='variable_explorer', name='copy', parent=self)
-        self.horizontalScrollBar().valueChanged.connect(lambda val: self.load_more_data(val, columns=True))
-        self.verticalScrollBar().valueChanged.connect(lambda val: self.load_more_data(val, rows=True))
-
-    def load_more_data(self, value, rows=False, columns=False):
-        old_selection = self.selectionModel().selection()
-        old_rows_loaded = old_cols_loaded = None
-
-        if rows and value == self.verticalScrollBar().maximum():
-            old_rows_loaded = self.model().rows_loaded
-            self.model().fetch_more(rows=rows)
-
-        if columns and value == self.horizontalScrollBar().maximum():
-            old_cols_loaded = self.model().cols_loaded
-            self.model().fetch_more(columns=columns)
-
-        if old_rows_loaded is not None or old_cols_loaded is not None:
-            # if we've changed anything, update selection
-            new_selection = QItemSelection()
-            for part in old_selection:
-                top = part.top()
-                bottom = part.bottom()
-                if old_rows_loaded is not None and top == 0 and bottom == (old_rows_loaded - 1):
-                    # complete column selected (so expand it to match updated range)
-                    bottom = self.model().rows_loaded - 1
-                left = part.left()
-                right = part.right()
-                if old_cols_loaded is not None and left == 0 and right == (old_cols_loaded - 1):
-                    # compete row selected (so expand it to match updated range)
-                    right = self.model().cols_loaded - 1
-                top_left = self.model().index(top, left)
-                bottom_right = self.model().index(bottom, right)
-                part = QItemSelectionRange(top_left, bottom_right)
-                new_selection.append(part)
-
-            self.selectionModel().select(new_selection, self.selectionModel().ClearAndSelect)
-
-    def resize_to_contents(self):
-        """Resize cells to contents"""
-        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-        self.resizeColumnsToContents()
-        self.model().fetch_more(columns=True)
-        self.resizeColumnsToContents()
-        QApplication.restoreOverrideCursor()
-
-    def setup_menu(self):
-        """Setup context menu"""
-        # self.copy_action = create_action(self, _('Copy'),
-        #                                  shortcut=keybinding('Copy'),
-        #                                  icon=ima.icon('editcopy'),
-        #                                  triggered=self.copy,
-        #                                  context=Qt.WidgetShortcut)
-        menu = QMenu(self)
-        # add_actions(menu, [self.copy_action, ])
-        return menu
-
-    def contextMenuEvent(self, event):
-        """Reimplement Qt method"""
-        self.menu.popup(event.globalPos())
-        event.accept()
-
-    def keyPressEvent(self, event):
-        """Reimplement Qt method"""
-        if event == QKeySequence.Copy:
-            self.copy()
-        else:
-            QTableView.keyPressEvent(self, event)
-
-    def _sel_to_text(self, cell_range):
-        """Copy an array portion to a unicode string"""
-        if not cell_range:
-            return
-        row_min, row_max, col_min, col_max = get_idx_rect(cell_range)
-        if col_min == 0 and col_max == (self.model().cols_loaded - 1):
-            # we've selected a whole column. It isn't possible to
-            # select only the first part of a column without loading more,
-            # so we can treat it as intentional and copy the whole thing
-            col_max = self.model().total_cols - 1
-        if row_min == 0 and row_max == (self.model().rows_loaded - 1):
-            row_max = self.model().total_rows - 1
-
-        _data = self.model().get_data()
-
-        output = io.BytesIO()
-
-        try:
-            np.savetxt(output, _data[row_min:row_max + 1, col_min:col_max + 1], delimiter='\t')
-        except:
-            QMessageBox.warning(self, "Warning", "It was not possible to copy values for this array")
-            return
-        contents = output.getvalue().decode('utf-8')
-        output.close()
-        return contents
-
-    @Slot()
-    def copy(self):
-        """Copy text to clipboard"""
-        cliptxt = self._sel_to_text(self.selectedIndexes())
-        clipboard = QApplication.clipboard()
-        clipboard.setText(cliptxt)
-
-
 class QuantityArrayEditorWidget(QWidget):
-    def __init__(self, parent, data: _Quantity, readonly=False, xlabels=None, ylabels=None, qdata=None):
+    def __init__(self, parent, data, readonly=False, xlabels=None, ylabels=None):
         QWidget.__init__(self, parent)
-
         self.parent = parent
-
-        self.qdata = data
         self.data = data
-
         self.old_data_shape = None
 
         if len(self.data.m.shape) == 1:
@@ -352,10 +228,10 @@ class QuantityArrayEditorWidget(QWidget):
                                         readonly=readonly,
                                         parent=self)
 
-        self.view = QuantityArrayView(self,
-                                      self.model,
-                                      data.m.dtype,
-                                      data.m.shape)
+        self.view = ArrayView(self,
+                              self.model,
+                              data.m.dtype,
+                              data.m.shape)
 
         btn_layout = QHBoxLayout()
         btn_layout.setAlignment(Qt.AlignLeft)
@@ -390,21 +266,16 @@ class QuantityArrayEditorWidget(QWidget):
 
     def add_units_to_combo(self):
         units = list(sorted(self.data.compatible_units()))
-
         for unit in units:
             self.unitCombo.addItem(str(unit), unit)
-
 
     def handle_unit_change(self, i):
 
         unit = self.unitCombo.currentData()
-        new_arr = self.qdata.to(unit)
-
+        new_arr = self.data.to(unit)
         self.data = new_arr
-
         if self.old_data_shape is not None:
             self.data.m.shape = self.old_data_shape
-
         self.parent.data = self.data
         self.parent.accept()
 
@@ -441,28 +312,10 @@ class QuantityArrayEditorWidget(QWidget):
             self.model.set_format(format)
 
 
-class QuantityArrayEditor(QDialog):
+class QuantityArrayEditor(ArrayEditor):
     """Array Editor Dialog"""
 
-    def __init__(self, parent=None):
-        QDialog.__init__(self, parent)
-
-        # Destroying the C++ object right after closing the dialog box,
-        # otherwise it may be garbage-collected in another QThread
-        # (e.g. the editor's analysis thread in Spyder), thus leading to
-        # a segmentation fault on UNIX or an application crash on Windows
-        self.setAttribute(Qt.WA_DeleteOnClose)
-
-        self.data = None
-        self.arraywidget = None
-        self.stack = None
-        self.layout = None
-        # Values for 3d array editor
-        self.dim_indexes = [{}, {}, {}]
-        self.last_dim = 0  # Adjust this for changing the startup dimension
-        self.unit = None
-
-    def setup_and_check(self, data: _Quantity, title='', readonly=False, xlabels=None, ylabels=None):
+    def setup_and_check(self, data, title='', readonly=False, xlabels=None, ylabels=None):
         """
         Setup ArrayEditor:
         return False if data is not supported, True otherwise
@@ -502,10 +355,7 @@ class QuantityArrayEditor(QDialog):
 
         # Stack widget
         self.stack = QStackedWidget(self)
-        if is_record_array:
-            for name in data.dtype.names:
-                self.stack.addWidget(QuantityArrayEditorWidget(self, data[name], readonly, xlabels, ylabels))
-        elif is_masked_array:
+        if is_masked_array:
             self.stack.addWidget(QuantityArrayEditorWidget(self, data, readonly, xlabels, ylabels))
             self.stack.addWidget(QuantityArrayEditorWidget(self, data.data, readonly, xlabels, ylabels))
             self.stack.addWidget(QuantityArrayEditorWidget(self, data.mask, readonly, xlabels, ylabels))
@@ -528,21 +378,9 @@ class QuantityArrayEditor(QDialog):
 
         # Buttons configuration
         btn_layout = QHBoxLayout()
-        if is_record_array or is_masked_array or data.m.ndim == 3:
-            if is_record_array:
-                btn_layout.addWidget(QLabel("Record array fields:"))
-                names = []
-                for name in data.m.dtype.names:
-                    field = data.m.dtype.fields[name]
-                    text = name
-                    if len(field) >= 3:
-                        title = field[2]
-                        if not is_text_string(title):
-                            title = repr(title)
-                        text += ' - ' + title
-                    names.append(text)
-            else:
-                names = ['Masked data', 'Data', 'Mask']
+        if is_masked_array or data.m.ndim == 3:
+
+            names = ['Masked data', 'Data', 'Mask']
             if data.m.ndim == 3:
                 # QSpinBox
                 self.index_spin = QSpinBox(self, keyboardTracking=False)
@@ -589,9 +427,6 @@ class QuantityArrayEditor(QDialog):
 
         return True
 
-    def current_widget_changed(self, index):
-        self.arraywidget = self.stack.widget(index)
-
     def change_active_widget(self, index):
         """
         This is implemented for handling negative values in index for
@@ -615,23 +450,7 @@ class QuantityArrayEditor(QDialog):
             self.stack.update()
         self.stack.setCurrentIndex(stack_index)
 
-    def current_dim_changed(self, index):
-        """
-        This change the active axis the array editor is plotting over
-        in 3D
-        """
-        self.last_dim = index
-        string_size = ['%i'] * 3
-        string_size[index] = '<font color=red>%i</font>'
-        self.shape_label.setText(('Shape: (' + ', '.join(string_size) + ')    ') % self.data.shape)
-        if self.index_spin.value() != 0:
-            self.index_spin.setValue(0)
-        else:
-            # this is done since if the value is currently 0 it does not emit
-            # currentIndexChanged(int)
-            self.change_active_widget(0)
-        self.index_spin.setRange(-self.data.shape[index], self.data.shape[index] - 1)
-
+    #
     @Slot()
     def accept(self):
         """Reimplement Qt method"""
@@ -641,16 +460,9 @@ class QuantityArrayEditor(QDialog):
 
         QDialog.accept(self)
 
-    def get_value(self):
-
-        """Return modified array -- this is *not* a copy"""
-        # It is import to avoid accessing Qt C++ object as it has probably
-        # already been destroyed, due to the Qt.WA_DeleteOnClose attribute
-        return self.data
-
     def error(self, message):
         """An error occured, closing the dialog box"""
-        QMessageBox.critical(self, "Array editor", message)
+        QMessageBox.critical(self, "Pint Array editor", message)
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.reject()
 
