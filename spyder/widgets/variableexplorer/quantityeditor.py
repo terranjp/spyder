@@ -49,7 +49,6 @@ from spyder.py3compat import (io, is_binary_string, is_string,
 # from spyder.utils.qthelpers import add_actions, create_action, keybinding
 
 
-
 # ==============================================================================
 # Main classes
 # ==============================================================================
