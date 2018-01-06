@@ -32,9 +32,9 @@ from qtpy.QtWidgets import (QAbstractItemDelegate, QApplication, QCheckBox,
 
 import numpy as np
 
-from spyder.widgets.variableexplorer.utils import (is_binary_string, is_text_string, to_binary_string, is_type_text_string)
 
 
+from spyder.widgets.variableexplorer.arrayeditor import SUPPORTED_FORMATS, is_number, is_float, get_idx_rect, LARGE_COLS, LARGE_NROWS, LARGE_SIZE, ArrayEditor, ArrayModel, ArrayDelegate
 
 
 from pint.quantity import _Quantity
@@ -49,86 +49,18 @@ from spyder.py3compat import (io, is_binary_string, is_string,
 # from spyder.utils.qthelpers import add_actions, create_action, keybinding
 
 
-# Note: string and unicode data types will be formatted with '%s' (see below)
-SUPPORTED_FORMATS = {
-    'single': '%.3f',
-    'double': '%.3f',
-    'float_': '%.3f',
-    'longfloat': '%.3f',
-    'float16': '%.3f',
-    'float32': '%.3f',
-    'float64': '%.3f',
-    'float96': '%.3f',
-    'float128': '%.3f',
-    'csingle': '%r',
-    'complex_': '%r',
-    'clongfloat': '%r',
-    'complex64': '%r',
-    'complex128': '%r',
-    'complex192': '%r',
-    'complex256': '%r',
-    'byte': '%d',
-    'bytes8': '%s',
-    'short': '%d',
-    'intc': '%d',
-    'int_': '%d',
-    'longlong': '%d',
-    'intp': '%d',
-    'int8': '%d',
-    'int16': '%d',
-    'int32': '%d',
-    'int64': '%d',
-    'ubyte': '%d',
-    'ushort': '%d',
-    'uintc': '%d',
-    'uint': '%d',
-    'ulonglong': '%d',
-    'uintp': '%d',
-    'uint8': '%d',
-    'uint16': '%d',
-    'uint32': '%d',
-    'uint64': '%d',
-    'bool_': '%r',
-    'bool8': '%r',
-    'bool': '%r',
-}
-
-LARGE_SIZE = 5e5
-LARGE_NROWS = 1e5
-LARGE_COLS = 60
-
-
-# ==============================================================================
-# Utility functions
-# ==============================================================================
-def is_float(dtype):
-    """Return True if datatype dtype is a float kind"""
-    return ('float' in dtype.name) or dtype.name in ['single', 'double']
-
-
-def is_number(dtype):
-    """Return True is datatype dtype is a number kind"""
-    return is_float(dtype) or ('int' in dtype.name) or ('long' in dtype.name) \
-           or ('short' in dtype.name)
-
-
-def get_idx_rect(index_list):
-    """Extract the boundaries from a list of indexes"""
-    rows, cols = list(zip(*[(i.row(), i.column()) for i in index_list]))
-    return (min(rows), max(rows), min(cols), max(cols))
-
 
 # ==============================================================================
 # Main classes
 # ==============================================================================
-class QuantityArrayModel(QAbstractTableModel):
+class QuantityArrayModel(ArrayModel):
     """Array Editor Table Model"""
 
     ROWS_TO_LOAD = 500
     COLS_TO_LOAD = 40
 
     def __init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None):
-        QAbstractTableModel.__init__(self)
+        ArrayModel.__init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None)
 
         # data = quantity_data.m
 
@@ -189,78 +121,11 @@ class QuantityArrayModel(QAbstractTableModel):
             else:
                 self.cols_loaded = self.total_cols
 
-    def get_format(self):
-        """Return current format"""
-        # Avoid accessing the private attribute _format from outside
-        return self._format
-
-    def get_data(self):
-        """Return data"""
-        return self._data
-
-    def set_format(self, format):
-        """Change display format"""
-        self._format = format
-        self.reset()
-
-    def columnCount(self, qindex=QModelIndex()):
-        """Array column number"""
-        if self.total_cols <= self.cols_loaded:
-            return self.total_cols
-        else:
-            return self.cols_loaded
-
-    def rowCount(self, qindex=QModelIndex()):
-        """Array row number"""
-        if self.total_rows <= self.rows_loaded:
-            return self.total_rows
-        else:
-            return self.rows_loaded
-
-    def can_fetch_more(self, rows=False, columns=False):
-        if rows:
-            if self.total_rows > self.rows_loaded:
-                return True
-            else:
-                return False
-        if columns:
-            if self.total_cols > self.cols_loaded:
-                return True
-            else:
-                return False
-
-    def fetch_more(self, rows=False, columns=False):
-        if self.can_fetch_more(rows=rows):
-            reminder = self.total_rows - self.rows_loaded
-            items_to_fetch = min(reminder, self.ROWS_TO_LOAD)
-            self.beginInsertRows(QModelIndex(), self.rows_loaded, self.rows_loaded + items_to_fetch - 1)
-            self.rows_loaded += items_to_fetch
-            self.endInsertRows()
-
-        if self.can_fetch_more(columns=columns):
-            reminder = self.total_cols - self.cols_loaded
-            items_to_fetch = min(reminder, self.COLS_TO_LOAD)
-            self.beginInsertColumns(QModelIndex(), self.cols_loaded, self.cols_loaded + items_to_fetch - 1)
-            self.cols_loaded += items_to_fetch
-            self.endInsertColumns()
-
-    def bgcolor(self, state):
-        """Toggle background color"""
-        self.bgcolor_enabled = state > 0
-        self.reset()
 
     def get_value(self, index):
-
         i = index.row()
         j = index.column()
-
-        index = (i, j)
-        test_value = self._data.m[i, j]
-
-        value = self.changes.get((i, j), self._data.m[i, j])
-
-
-        return value
+        return self.changes.get((i, j), self._data.m[i, j])
 
     def data(self, index, role=Qt.DisplayRole):
         """Cell content"""
@@ -283,6 +148,7 @@ class QuantityArrayModel(QAbstractTableModel):
 
         elif role == Qt.TextAlignmentRole:
             return to_qvariant(int(Qt.AlignCenter | Qt.AlignVCenter))
+
         elif role == Qt.BackgroundColorRole and self.bgcolor_enabled and value is not np.ma.masked:
             hue = self.hue0 + self.dhue * (self.vmax - self.color_func(value)) / (self.vmax - self.vmin)
             hue = float(np.abs(hue))
@@ -331,8 +197,6 @@ class QuantityArrayModel(QAbstractTableModel):
 
         # Add change to self.changes
         self.changes[(i, j)] = val
-
-
         self.dataChanged.emit(index, index)
         if not is_string(val):
             if val > self.vmax:
@@ -340,69 +204,6 @@ class QuantityArrayModel(QAbstractTableModel):
             if val < self.vmin:
                 self.vmin = val
         return True
-
-    def flags(self, index):
-        """Set editable flag"""
-        if not index.isValid():
-            return Qt.ItemIsEnabled
-        return Qt.ItemFlags(QAbstractTableModel.flags(self, index) | Qt.ItemIsEditable)
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        """Set header data"""
-        if role != Qt.DisplayRole:
-            return to_qvariant()
-        labels = self.xlabels if orientation == Qt.Horizontal else self.ylabels
-        if labels is None:
-            return to_qvariant(int(section))
-        else:
-            return to_qvariant(labels[section])
-
-    def reset(self):
-        self.beginResetModel()
-        self.endResetModel()
-
-
-class QuantityArrayDelegate(QItemDelegate):
-    """Array Editor Item Delegate"""
-
-    def __init__(self, dtype, parent=None):
-        QItemDelegate.__init__(self, parent)
-        self.dtype = dtype
-
-    def createEditor(self, parent, option, index):
-        """Create editor widget"""
-        model = index.model()
-        value = model.get_value(index)
-        if model._data.dtype.name == "bool":
-            value = not value
-            model.setData(index, to_qvariant(value))
-            return
-        elif value is not np.ma.masked:
-            editor = QLineEdit(parent)
-            # editor.setFont(get_font(font_size_delta=DEFAULT_SMALL_DELTA))
-            editor.setAlignment(Qt.AlignCenter)
-            if is_number(self.dtype):
-                editor.setValidator(QDoubleValidator(editor))
-            editor.returnPressed.connect(self.commitAndCloseEditor)
-            return editor
-
-    def commitAndCloseEditor(self):
-        """Commit and close editor"""
-        editor = self.sender()
-        # Avoid a segfault with PyQt5. Variable value won't be changed
-        # but at least Spyder won't crash. It seems generated by a
-        # bug in sip. See
-        # http://comments.gmane.org/gmane.comp.python.pyqt-pykde/26544
-        try:
-            self.commitData.emit(editor)
-        except AttributeError:
-            pass
-        self.closeEditor.emit(editor, QAbstractItemDelegate.NoHint)
-
-    def setEditorData(self, editor, index):
-        """Set editor widget's data"""
-        text = from_qvariant(index.model().data(index, Qt.DisplayRole), str)
-        editor.setText(text)
 
 
 # TODO: Implement "Paste" (from clipboard) feature
@@ -413,7 +214,7 @@ class QuantityArrayView(QTableView):
         QTableView.__init__(self, parent)
 
         self.setModel(model)
-        self.setItemDelegate(QuantityArrayDelegate(dtype, self))
+        self.setItemDelegate(ArrayDelegate(dtype, self))
         total_width = 0
 
         for k in range(shape[1]):
@@ -497,7 +298,7 @@ class QuantityArrayView(QTableView):
         row_min, row_max, col_min, col_max = get_idx_rect(cell_range)
         if col_min == 0 and col_max == (self.model().cols_loaded - 1):
             # we've selected a whole column. It isn't possible to
-            # select only the first part of a column without loading more, 
+            # select only the first part of a column without loading more,
             # so we can treat it as intentional and copy the whole thing
             col_max = self.model().total_cols - 1
         if row_min == 0 and row_max == (self.model().rows_loaded - 1):
@@ -574,17 +375,15 @@ class QuantityArrayEditorWidget(QWidget):
         bgcolor.stateChanged.connect(self.model.bgcolor)
         btn_layout.addWidget(bgcolor)
 
-        # Add a combo box to change current pint unit
-
-        self.unitLabel = QLabel("Convert to unit:")
+        self.unitLbl = QLabel("Change Unit:")
         self.unitCombo = QComboBox()
         self.add_units_to_combo()
         i = self.unitCombo.findData(self.data.u)
         self.unitCombo.setCurrentIndex(i)
         self.unitCombo.currentIndexChanged.connect(self.handle_unit_change)
-
-        btn_layout.addWidget(self.unitLabel)
+        btn_layout.addWidget(self.unitLbl)
         btn_layout.addWidget(self.unitCombo)
+
         layout = QVBoxLayout()
         layout.addWidget(self.view)
         layout.addLayout(btn_layout)
@@ -694,7 +493,7 @@ class QuantityArrayEditor(QDialog):
         self.setLayout(self.layout)
         # self.setWindowIcon(ima.icon('arredit'))
         if title:
-            title = str(title) + " - " + "NumPy array" + str(data.u)
+            title = str(title) + " - " + "Pint NumPy array"
         else:
             title = "Array editor"
         if readonly:
