@@ -441,8 +441,8 @@ class CollectionsDelegate(QItemDelegate):
                 return None
         except Exception as msg:
             QMessageBox.critical(self.parent(), _("Error"),
-                                 _("Spyder was unable to retrieve the value of "
-                                   "this variable from the console.<br><br>"
+                                 _("Spyder was unable to retrieve the value of"
+                                   " this variable from the console.<br><br>"
                                    "The error mesage was:<br>"
                                    "<i>%s</i>"
                                    ) % to_text_string(msg))
