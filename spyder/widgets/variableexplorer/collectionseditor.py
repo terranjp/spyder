@@ -1241,6 +1241,11 @@ class CollectionsEditorTableView(BaseTableView):
     def is_array(self, key):
         """Return True if variable is a numpy array"""
         data = self.model.get_data()
+
+        if Quantity is not FakeObject:
+            if isinstance(data[key], Quantity):
+                return isinstance(data[key].m, ndarray)
+
         return isinstance(data[key], (ndarray, MaskedArray))
         
     def is_image(self, key):
@@ -1557,10 +1562,15 @@ def get_test_data():
     """Create test data."""
     import numpy as np
     from spyder.pil_patch import Image
+    import pint
+    ur = pint.UnitRegistry()
+
     image = Image.fromarray(np.random.random_integers(255, size=(100, 100)),
                             mode='P')
     testdict = {'d': 1, 'a': np.random.rand(10, 10), 'b': [1, 2]}
     testdate = datetime.date(1945, 5, 8)
+
+
 
     class Foobar(object):
 
@@ -1599,6 +1609,8 @@ def get_test_data():
             # Test for Issue #3518
             'big_struct_array': np.zeros(1000, dtype=[('ID', 'f8'),
                                                       ('param1', 'f8', 5000)]),
+            'quantity_scalar': 5 * ur['feet'],
+            'quantity_array': np.arange(0, 10, 1) * ur['gram'],
             }
 
 
