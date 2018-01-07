@@ -458,7 +458,22 @@ def value_to_display(value, minmax=False, level=0):
               isinstance(value, numeric_numpy_types)):
             display = repr(value)
         elif isinstance(value, Quantity):
-            display = str(value)
+            if isinstance(value.m, ndarray):
+                if level == 0:
+                    if minmax:
+                        try:
+                            display = 'Min: %r %s\nMax: %r %s' % (value.m.min(), value.u, value.m.max(), value.u)
+                        except (TypeError, ValueError):
+                            if value.m.dtype.type in numeric_numpy_types:
+                                display = str(value)
+                            else:
+                                display = default_display(value)
+                    elif value.dtype.type in numeric_numpy_types:
+                        display = str(value)
+                    else:
+                        display = default_display(value)
+            else:
+                display = str(value)
         else:
             if level == 0:
                 display = default_display(value)

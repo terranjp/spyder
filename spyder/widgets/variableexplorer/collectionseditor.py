@@ -341,6 +341,7 @@ class ReadOnlyCollectionsModel(QAbstractTableModel):
             return Qt.ItemIsEnabled
         return Qt.ItemFlags(QAbstractTableModel.flags(self, index)|
                             Qt.ItemIsEditable)
+
     def reset(self):
         self.beginResetModel()
         self.endResetModel()
