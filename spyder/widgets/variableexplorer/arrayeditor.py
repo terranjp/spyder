@@ -594,6 +594,7 @@ class ArrayEditor(QDialog):
     """Array Editor Dialog"""    
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
+        print('ArrayEditor')
         
         # Destroying the C++ object right after closing the dialog box,
         # otherwise it may be garbage-collected in another QThread
@@ -746,6 +747,7 @@ class ArrayEditor(QDialog):
         This is implemented for handling negative values in index for
         3d arrays, to give the same behavior as slicing
         """
+        print('change_active_widget')
         string_index = [':']*3
         string_index[self.last_dim] = '<font color=red>%i</font>'
         self.slicing_label.setText((r"Slicing: [" + ", ".join(string_index) +
@@ -774,6 +776,7 @@ class ArrayEditor(QDialog):
         This change the active axis the array editor is plotting over
         in 3D
         """
+        print('current_dim_changed')
         self.last_dim = index
         string_size = ['%i']*3
         string_size[index] = '<font color=red>%i</font>'

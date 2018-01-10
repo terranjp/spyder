@@ -32,21 +32,19 @@ from qtpy.QtWidgets import (QAbstractItemDelegate, QApplication, QCheckBox,
 
 import numpy as np
 
+# Local imports
 from spyder.widgets.variableexplorer.arrayeditor import SUPPORTED_FORMATS, is_number, is_float, get_idx_rect, \
     LARGE_COLS, LARGE_NROWS, LARGE_SIZE, ArrayEditor, ArrayModel, ArrayDelegate, ArrayView
 
-from pint.quantity import _Quantity
-# Local imports
-# from spyder.config.base import _
-# from spyder.config.fonts import DEFAULT_SMALL_DELTA
-# from spyder.config.gui import get_font, config_shortcut
+
+from spyder.config.base import _
+from spyder.config.fonts import DEFAULT_SMALL_DELTA
+from spyder.config.gui import get_font, config_shortcut
 from spyder.py3compat import (io, is_binary_string, is_string,
                               is_text_string, PY3, to_binary_string,
                               to_text_string)
-
-
-# from spyder.utils import icon_manager as ima
-# from spyder.utils.qthelpers import add_actions, create_action, keybinding
+from spyder.utils import icon_manager as ima
+from spyder.utils.qthelpers import add_actions, create_action, keybinding
 
 
 # ==============================================================================
@@ -58,8 +56,10 @@ class QuantityArrayModel(ArrayModel):
     # ROWS_TO_LOAD = 500
     # COLS_TO_LOAD = 40
 
-    def __init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None):
-        ArrayModel.__init__(self, data, format="%.3f", xlabels=None, ylabels=None, readonly=False, parent=None)
+    def __init__(self, data, format="%.3f", xlabels=None, ylabels=None,
+                 readonly=False, parent=None):
+        ArrayModel.__init__(self, data, format="%.3f", xlabels=None,
+                            ylabels=None, readonly=False, parent=None)
 
         # data = quantity_data.m
 
@@ -250,37 +250,13 @@ class QuantityArrayEditorWidget(QWidget):
         bgcolor.stateChanged.connect(self.model.bgcolor)
         btn_layout.addWidget(bgcolor)
 
-        self.unitLbl = QLabel("Change Unit:")
-        self.unitCombo = QComboBox()
-        self.add_units_to_combo()
-        i = self.unitCombo.findData(self.data.u)
-        self.unitCombo.setCurrentIndex(i)
-        self.unitCombo.currentIndexChanged.connect(self.handle_unit_change)
-        btn_layout.addWidget(self.unitLbl)
-        btn_layout.addWidget(self.unitCombo)
+
 
         layout = QVBoxLayout()
         layout.addWidget(self.view)
         layout.addLayout(btn_layout)
         self.setLayout(layout)
 
-    def add_units_to_combo(self):
-        units = list(sorted(self.data.compatible_units()))
-        for unit in units:
-            self.unitCombo.addItem(str(unit), unit)
-
-    def handle_unit_change(self, i):
-
-        unit = self.unitCombo.currentData()
-        new_arr = self.data.to(unit)
-        self.data = new_arr
-        if self.old_data_shape is not None:
-            self.data.m.shape = self.old_data_shape
-        self.parent.data = self.data
-        self.parent.accept()
-
-    def set_unit(self, new_unit):
-        self.data.ito(new_unit)
 
     def accept_changes(self):
         """Accept changes"""
@@ -297,9 +273,8 @@ class QuantityArrayEditorWidget(QWidget):
 
     def change_format(self):
         """Change display format"""
-        format, valid = QInputDialog.getText(self,
-                                             'Format',
-                                             "Float formatting",
+        format, valid = QInputDialog.getText(self, _('Format'),
+                                             _("Float formatting"),
                                              QLineEdit.Normal,
                                              self.model.get_format())
         if valid:
@@ -307,77 +282,116 @@ class QuantityArrayEditorWidget(QWidget):
             try:
                 format % 1.1
             except:
-                QMessageBox.critical(self, "Error", "Format (%s) is incorrect" % format)
+                QMessageBox.critical(self, _("Error"),
+                                     _("Format (%s) is incorrect") % format)
                 return
             self.model.set_format(format)
 
 
-class QuantityArrayEditor(ArrayEditor):
+class QuantityArrayEditor(QDialog):
     """Array Editor Dialog"""
 
-    def setup_and_check(self, data, title='', readonly=False, xlabels=None, ylabels=None):
+    def setup_and_check(self, data, title='', readonly=False,
+                        xlabels=None, ylabels=None):
         """
         Setup ArrayEditor:
         return False if data is not supported, True otherwise
         """
         self.data = data
+        self.xlabels = xlabels
+        self.ylabels = ylabels
+        self.readonly = readonly
+
         self.data.flags.writeable = True
         is_record_array = data.m.dtype.names is not None
         is_masked_array = isinstance(data.m, np.ma.MaskedArray)
 
-        if data.m.ndim > 3:
-            self.error("Arrays with more than 3 dimensions are not supported")
+        if data.ndim > 3:
+            self.error(_("Arrays with more than 3 dimensions are not "
+                         "supported"))
             return False
-        if xlabels is not None and len(xlabels) != self.data.m.shape[1]:
-            self.error("The 'xlabels' argument length do no match array column number")
+        if xlabels is not None and len(xlabels) != self.data.shape[1]:
+            self.error(_("The 'xlabels' argument length do no match array "
+                         "column number"))
             return False
-        if ylabels is not None and len(ylabels) != self.data.m.shape[0]:
-            self.error("The 'ylabels' argument length do no match array row number")
-            return False
+        if ylabels is not None and len(ylabels) != self.data.shape[0]:
+            self.error(_("The 'ylabels' argument length do no match array row "
+                         "number"))
         if not is_record_array:
-            dtn = data.m.dtype.name
-            if dtn not in SUPPORTED_FORMATS and not dtn.startswith('str') and not dtn.startswith('unicode'):
-                arr = "%s arrays" % data.m.dtype.name
-                self.error("%s are currently not supported" % arr)
+            dtn = data.dtype.name
+            if dtn not in SUPPORTED_FORMATS and not dtn.startswith('str') \
+               and not dtn.startswith('unicode'):
+                arr = _("%s arrays") % data.dtype.name
+                self.error(_("%s are currently not supported") % arr)
                 return False
 
         self.layout = QGridLayout()
         self.setLayout(self.layout)
-        # self.setWindowIcon(ima.icon('arredit'))
+        self.setWindowIcon(ima.icon('arredit'))
         if title:
-            title = str(title) + " - " + "Pint NumPy array"
+            title = str(title) + " - " + _("Pint NumPy array")
         else:
-            title = "Array editor"
+            title = _("Array editor")
         if readonly:
-            title += ' (' + 'read only' + ')'
+            title += ' (' + _('read only') + ')'
         self.setWindowTitle(title)
         self.resize(600, 500)
 
         # Stack widget
         self.stack = QStackedWidget(self)
         if is_masked_array:
-            self.stack.addWidget(QuantityArrayEditorWidget(self, data, readonly, xlabels, ylabels))
-            self.stack.addWidget(QuantityArrayEditorWidget(self, data.data, readonly, xlabels, ylabels))
-            self.stack.addWidget(QuantityArrayEditorWidget(self, data.mask, readonly, xlabels, ylabels))
+            self.stack.addWidget(QuantityArrayEditorWidget(self,
+                                                           data,
+                                                           readonly,
+                                                           xlabels,
+                                                           ylabels))
+            self.stack.addWidget(QuantityArrayEditorWidget(self,
+                                                           data.data,
+                                                           readonly,
+                                                           xlabels,
+                                                           ylabels))
+            self.stack.addWidget(QuantityArrayEditorWidget(self,
+                                                           data.mask,
+                                                           readonly,
+                                                           xlabels,
+                                                           ylabels))
         elif data.ndim == 3:
             pass
         else:
-            self.stack.addWidget(QuantityArrayEditorWidget(self, data, readonly, xlabels, ylabels))
+            self.stack.addWidget(QuantityArrayEditorWidget(self,
+                                                           data,
+                                                           readonly,
+                                                           xlabels,
+                                                           ylabels))
 
         self.arraywidget = self.stack.currentWidget()
         self.stack.currentChanged.connect(self.current_widget_changed)
         self.layout.addWidget(self.stack, 1, 0)
 
         self.unitLabel = QLabel()
-        self.unitLabel.setText(f'Unit: {data.u}')
+        self.unitLabel.setText('{}: {}'.format(_('Current unit'),
+                                               _(str(data.u))))
         self.dimensionLabel = QLabel()
-        self.dimensionLabel.setText(f'Dimension: {data.dimensionality}')
+        self.dimensionLabel.setText('{}: {}'.format(_('Dimension'),
+                                                _(str(data.dimensionality))))
+        self.layout.addWidget(self.dimensionLabel, 2, 0)
+        self.layout.addWidget(self.unitLabel, 3, 0)
 
-        self.layout.addWidget(self.unitLabel)
-        self.layout.addWidget(self.dimensionLabel)
 
         # Buttons configuration
         btn_layout = QHBoxLayout()
+
+        self.unitLbl = QLabel("Conver to:")
+        self.unitCombo = QComboBox()
+        self.add_units_to_combo()
+        i = self.unitCombo.findData(self.data.u)
+        self.unitCombo.setCurrentIndex(i)
+        self.unitCombo.currentIndexChanged.connect(self.handle_unit_change)
+        btn_layout.addWidget(self.unitLbl)
+        btn_layout.addWidget(self.unitCombo)
+        self.converted_widget = None
+
+
         if is_masked_array or data.m.ndim == 3:
 
             names = ['Masked data', 'Data', 'Mask']
@@ -420,12 +434,15 @@ class QuantityArrayEditor(ArrayEditor):
         bbox.accepted.connect(self.accept)
         bbox.rejected.connect(self.reject)
         btn_layout.addWidget(bbox)
-        self.layout.addLayout(btn_layout, 2, 0)
+        self.layout.addLayout(btn_layout, 4, 0)
         self.setMinimumSize(400, 300)
         # Make the dialog act as a window
         self.setWindowFlags(Qt.Window)
 
         return True
+
+    def current_widget_changed(self, index):
+        self.arraywidget = self.stack.widget(index)
 
     def change_active_widget(self, index):
         """
@@ -450,15 +467,55 @@ class QuantityArrayEditor(ArrayEditor):
             self.stack.update()
         self.stack.setCurrentIndex(stack_index)
 
-    #
+    def add_units_to_combo(self):
+        units = list(sorted(self.data.compatible_units()))
+        for unit in units:
+            self.unitCombo.addItem(str(unit), unit)
+
+    def handle_unit_change(self, i):
+
+        if self.converted_widget is not None:
+            self.stack.removeWidget(self.converted_widget)
+
+
+        unit = self.unitCombo.currentData()
+        new_data= self.data.to(unit)
+        self.converted_widget = QuantityArrayEditorWidget(self,
+                                                       new_data,
+                                                       self.readonly,
+                                                       self.xlabels,
+                                                       self.ylabels)
+
+
+        self.stack.addWidget(self.converted_widget)
+        self.stack.setCurrentWidget(self.converted_widget)
+
+        # self.stack.setCurrentIndex(1)
+        # self.data = new_arr
+        # if self.old_data_shape is not None:
+        #     self.data.m.shape = self.old_data_shape
+        # self.parent.data = self.data
+        # self.accept()
+
+    def set_unit(self, new_unit):
+        self.data.ito(new_unit)
+
     @Slot()
     def accept(self):
         """Reimplement Qt method"""
 
-        for index in range(self.stack.count()):
-            self.stack.widget(index).accept_changes()
+        self.converted_widget.accept_changes()
+
+        # for index in range(self.stack.count()):
+        #     self.stack.widget(index).accept_changes()
 
         QDialog.accept(self)
+
+    def get_value(self):
+        """Return modified array -- this is *not* a copy"""
+        # It is import to avoid accessing Qt C++ object as it has probably
+        # already been destroyed, due to the Qt.WA_DeleteOnClose attribute
+        return self.data
 
     def error(self, message):
         """An error occured, closing the dialog box"""
