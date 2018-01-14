@@ -47,9 +47,9 @@ from spyder.utils import icon_manager as ima
 from spyder.utils.qthelpers import add_actions, create_action, keybinding
 
 
-# ==============================================================================
+# =============================================================================
 # Main classes
-# ==============================================================================
+# =============================================================================
 class QuantityArrayModel(ArrayModel):
     """Array Editor Table Model"""
 
@@ -147,7 +147,8 @@ class QuantityArrayModel(ArrayModel):
         elif role == Qt.TextAlignmentRole:
             return to_qvariant(int(Qt.AlignCenter | Qt.AlignVCenter))
 
-        elif role == Qt.BackgroundColorRole and self.bgcolor_enabled and value is not np.ma.masked:
+        elif role == Qt.BackgroundColorRole and self.bgcolor_enabled \
+                and value is not np.ma.masked:
             hue = self.hue0 + self.dhue * (self.vmax - self.color_func(value)) / (self.vmax - self.vmin)
             hue = float(np.abs(hue))
             color = QColor.fromHsvF(hue, self.sat, self.val, self.alp)
@@ -211,13 +212,13 @@ class QuantityArrayEditorWidget(QWidget):
         self.data = data
         self.old_data_shape = None
 
-        if len(self.data.m.shape) == 1:
-            self.old_data_shape = self.data.m.shape
-            self.data.m.shape = (self.data.m.shape[0], 1)
+        if len(self.data.shape) == 1:
+            self.old_data_shape = self.data.shape
+            self.data.shape = (self.data.shape[0], 1)
 
-        elif len(self.data.m.shape) == 0:
-            self.old_data_shape = self.data.m.shape
-            self.data.m.shape = (1, 1)
+        elif len(self.data.shape) == 0:
+            self.old_data_shape = self.data.shape
+            self.data.shape = (1, 1)
 
         format = SUPPORTED_FORMATS.get(data.m.dtype.name, '%s')
 
@@ -231,7 +232,7 @@ class QuantityArrayEditorWidget(QWidget):
         self.view = ArrayView(self,
                               self.model,
                               data.m.dtype,
-                              data.m.shape)
+                              data.shape)
 
         btn_layout = QHBoxLayout()
         btn_layout.setAlignment(Qt.AlignLeft)
@@ -250,21 +251,19 @@ class QuantityArrayEditorWidget(QWidget):
         bgcolor.stateChanged.connect(self.model.bgcolor)
         btn_layout.addWidget(bgcolor)
 
-
-
         layout = QVBoxLayout()
         layout.addWidget(self.view)
         layout.addLayout(btn_layout)
         self.setLayout(layout)
 
-
     def accept_changes(self):
         """Accept changes"""
+
         for (i, j), value in list(self.model.changes.items()):
             self.data.m[i, j] = value
 
         if self.old_data_shape is not None:
-            self.data.m.shape = self.old_data_shape
+            self.data.shape = self.old_data_shape
 
     def reject_changes(self):
         """Reject changes"""
@@ -477,9 +476,14 @@ class QuantityArrayEditor(QDialog):
         if self.converted_widget is not None:
             self.stack.removeWidget(self.converted_widget)
 
+        self.old_data_shape = self.stack.widget(0).old_data_shape
 
         unit = self.unitCombo.currentData()
-        new_data= self.data.to(unit)
+        new_data = self.data.to(unit)
+
+        if self.old_data_shape is not None:
+            new_data.shape = self.old_data_shape
+
         self.converted_widget = QuantityArrayEditorWidget(self,
                                                        new_data,
                                                        self.readonly,
@@ -487,27 +491,31 @@ class QuantityArrayEditor(QDialog):
                                                        self.ylabels)
 
 
+
         self.stack.addWidget(self.converted_widget)
         self.stack.setCurrentWidget(self.converted_widget)
 
-        # self.stack.setCurrentIndex(1)
-        # self.data = new_arr
-        # if self.old_data_shape is not None:
-        #     self.data.m.shape = self.old_data_shape
-        # self.parent.data = self.data
-        # self.accept()
-
     def set_unit(self, new_unit):
         self.data.ito(new_unit)
+
+    def accept2(self):
+
+        self.accept()
+        # self.accept()
 
     @Slot()
     def accept(self):
         """Reimplement Qt method"""
 
-        self.converted_widget.accept_changes()
+        if self.converted_widget is not None:
+            if self.converted_widget.old_data_shape is not None:
+                self.converted_widget.data.m.shape = self.converted_widget.old_data_shape
 
-        # for index in range(self.stack.count()):
-        #     self.stack.widget(index).accept_changes()
+            self.data = self.converted_widget.data
+
+
+        for index in range(self.stack.count()):
+            self.stack.widget(index).accept_changes()
 
         QDialog.accept(self)
 

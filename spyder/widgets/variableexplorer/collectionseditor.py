@@ -1610,7 +1610,8 @@ def get_test_data():
             'big_struct_array': np.zeros(1000, dtype=[('ID', 'f8'),
                                                       ('param1', 'f8', 5000)]),
             'quantity_scalar': 5 * ur['feet'],
-            'quantity_array': np.arange(0, 10, 1) * ur['gram'],
+            'quantity_1d_array': np.arange(0, 10, 1) * ur['gram'],
+            'quantity_array': np.ones((10, 10)) * ur['meter'],
             }
 
 
@@ -1646,5 +1647,14 @@ def remote_editor_test():
 
 
 if __name__ == "__main__":
+    import traceback
+    def handleException(exc_type, exc_value, exc_traceback):
+        traceback.format_exception(exc_type, exc_value, exc_traceback)
+        traceback.print_exception(exc_type, exc_value, exc_traceback)
+
+
+    # install exception hook: without this, uncaught exception would cause application to exit
+    sys.excepthook = handleException
+
     editor_test()
     remote_editor_test()
