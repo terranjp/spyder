@@ -153,8 +153,8 @@ class QuantityArrayModel(ArrayModel):
             hue = float(np.abs(hue))
             color = QColor.fromHsvF(hue, self.sat, self.val, self.alp)
             return to_qvariant(color)
-        # elif role == Qt.FontRole:
-        #     return to_qvariant(get_font(font_size_delta=DEFAULT_SMALL_DELTA))
+        elif role == Qt.FontRole:
+            return to_qvariant(get_font(font_size_delta=DEFAULT_SMALL_DELTA))
         return to_qvariant()
 
     def setData(self, index, value, role=Qt.EditRole):
