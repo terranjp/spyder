@@ -1610,7 +1610,7 @@ def get_test_data():
             'big_struct_array': np.zeros(1000, dtype=[('ID', 'f8'),
                                                       ('param1', 'f8', 5000)]),
             'quantity_scalar': 5 * ur['feet'],
-            'quantity_1d_array': np.arange(0, 10, 1) * ur['gram'],
+            'quantity_1d_array': np.arange(0, 10, 1) * ur['kilopound'],
             'quantity_array': np.ones((10, 10)) * ur['meter'],
             }
 

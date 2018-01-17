@@ -21,7 +21,7 @@ from qtpy.compat import from_qvariant, to_qvariant
 from qtpy.QtCore import (QAbstractTableModel, QItemSelection,
                          QItemSelectionRange, QModelIndex, Qt, Slot)
 
-from qtpy.QtGui import QColor, QCursor, QDoubleValidator, QKeySequence
+from qtpy.QtGui import QColor, QCursor, QDoubleValidator, QKeySequence, QBrush
 
 from qtpy.QtWidgets import (QAbstractItemDelegate, QApplication, QCheckBox,
                             QComboBox, QDialog, QDialogButtonBox, QGridLayout,
@@ -379,20 +379,15 @@ class QuantityArrayEditor(QDialog):
 
         # Buttons configuration
         btn_layout = QHBoxLayout()
-
-        self.unitLbl = QLabel("Conver to:")
+        self.unitLbl = QLabel("Convert to:")
         self.unitCombo = QComboBox()
         self.add_units_to_combo()
-        i = self.unitCombo.findData(self.data.u)
-        self.unitCombo.setCurrentIndex(i)
         self.unitCombo.currentIndexChanged.connect(self.handle_unit_change)
         btn_layout.addWidget(self.unitLbl)
         btn_layout.addWidget(self.unitCombo)
         self.converted_widget = None
 
-
         if is_masked_array or data.m.ndim == 3:
-
             names = ['Masked data', 'Data', 'Mask']
             if data.m.ndim == 3:
                 # QSpinBox
@@ -466,10 +461,39 @@ class QuantityArrayEditor(QDialog):
             self.stack.update()
         self.stack.setCurrentIndex(stack_index)
 
+    def get_compatible_units(self):
+        ur = self.data._REGISTRY
+        compatible_units = set()
+
+        for unit_str in dir(ur):
+            unit = getattr(ur, unit_str)
+            if hasattr(unit, 'dimensionality'):
+                if unit.dimensionality == self.data.dimensionality:
+                    compatible_units.add(unit)
+
+        return compatible_units
+
     def add_units_to_combo(self):
-        units = list(sorted(self.data.compatible_units()))
+
+        units = self.get_compatible_units()
+
+        if self.data.u not in units:
+            units.add(self.data.u)
+
         for unit in units:
             self.unitCombo.addItem(str(unit), unit)
+
+        self.unitCombo.model().sort(Qt.AscendingOrder)
+
+        i = self.unitCombo.findText(str(self.data.u))
+        self.unitCombo.setItemData(i,
+                                   QBrush(Qt.blue),
+                                   Qt.BackgroundColorRole)
+        self.unitCombo.setItemData(i,
+                                   QBrush(Qt.white),
+                                   Qt.TextColorRole)
+        self.unitCombo.setCurrentIndex(i)
+
 
     def handle_unit_change(self, i):
 
@@ -489,8 +513,6 @@ class QuantityArrayEditor(QDialog):
                                                        self.readonly,
                                                        self.xlabels,
                                                        self.ylabels)
-
-
 
         self.stack.addWidget(self.converted_widget)
         self.stack.setCurrentWidget(self.converted_widget)
